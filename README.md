@@ -1,2 +1,2 @@
 # Reinforcement-Learning
-Implementation of reinforcement learning in Python with OpenAI.
+Implementation of reinforcement learning in Python.
