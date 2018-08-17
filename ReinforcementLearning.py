@@ -1,6 +1,8 @@
 import numpy as np
 import time
 import random
+import matplotlib.pyplot as plt
+from matplotlib import animation
 
 
 class Maze:
@@ -38,20 +40,45 @@ class Maze:
         self.maze = d[self.name]
         self.rows, self.columns = self.maze.shape
         self.reset()
+        self.enlarge = 10
+        self.size = (self.rows * self.enlarge, self.columns * self.enlarge)
 
     def show(self):
         old_sign = self.get_sign_at_current_position()
         self.maze[self.position // self.columns, self.position % self.columns] = '@'  # current position
         print(self.name)
-        print(self.maze, '\n')
+        [print(row) for row in self.maze]
+        print()
         self.maze[self.position // self.columns, self.position % self.columns] = old_sign
+
+    def make_image(self, size):
+        img = np.zeros((*size, 3), dtype='uint8')
+        for i, row in enumerate(self.maze):
+            for j, cell in enumerate(row):
+                img[i*self.enlarge: (i+1)*self.enlarge-1, j*self.enlarge: (j+1)*self.enlarge-1] = self.coloured_part(cell)[-1, -1, :]
+
+        i = self.position // self.columns
+        j = self.position % self.columns
+        img[i*self.enlarge: (i+1)*self.enlarge-1, j*self.enlarge: (j+1)*self.enlarge-1] = self.coloured_part('@')[-1, -1, :]
+        img[0, :, :] = 0
+        img[:, 0, :] = 0
+        return img
+
+    def coloured_part(self, cell):
+        part = np.zeros((self.enlarge, self.enlarge, 3), dtype='uint8')
+        if cell == 'S' or cell == '.':
+            part[:, :, 1] = 200
+        elif cell == 'O':
+            part[:, :, 0] = 200
+        elif cell == 'E':
+            part[:, :, 0] = 250
+            part[:, :, 1] = 200
+        elif cell == '@':
+            part[:, :, 2] = 200
+        return part
 
     def reset(self):
         self.position = 0 if self.name.startswith('5') else 18
-        # if self.name.startswith('5'):
-        #     self.position = 0
-        # else:
-        #     self.position = 18
 
     def get_sign_at_current_position(self):
         return self.maze[self.position // self.columns, self.position % self.columns]
@@ -178,8 +205,10 @@ class ReinforcementLearning:
         self.Q = Q_table
 
     def play(self):
+        images = []
         self.maze = Maze(self.name)
-        self.maze.show()
+        images.append([plt.imshow(self.maze.make_image(self.maze.size), animated=True)])
+
         for step in range(self.max_steps):
             # time.sleep(1.5)     # for demo only
 
@@ -187,17 +216,20 @@ class ReinforcementLearning:
             action = np.argmax(self.Q[self.maze.position, :])
 
             self.maze.make_move(self.map2str[action])
-            self.maze.show()
+            images.append([plt.imshow(self.maze.make_image(self.maze.size), animated=True)])
 
             _, done = self.check_position()
             if done:
                 break
 
+        anim = animation.ArtistAnimation(plt.figure(0), images, interval=1000, repeat=False, blit=True)
+        plt.show()
+
 
 if __name__ == '__main__':
     np.set_printoptions(precision=2, suppress=True)
 
-    name = '5x5-v0'
+    name = '10x10'
     rl = ReinforcementLearning(name, verbose=False)
     rl.reinforcement_learning()
     rl.play()
