@@ -2,6 +2,10 @@ import numpy as np
 import time
 import random
 import matplotlib.pyplot as plt
+from keras import Sequential
+from keras.engine import InputLayer
+from keras.layers import Dense
+from keras.models import load_model
 from matplotlib import animation
 
 
@@ -145,7 +149,7 @@ class ReinforcementLearning:
         elif self.maze.check_holes():
             return -100, True
         elif self.maze.check_path() or self.maze.check_start():
-            return -1, False
+            return 1, False
 
     def reinforcement_learning(self):
         action_size = len(self.map2str)
@@ -175,7 +179,6 @@ class ReinforcementLearning:
 
                 previous_position = self.maze.position
                 self.maze.make_move(self.map2str[action])
-
                 reward, done = self.check_position()
 
                 # update Q_table
@@ -225,11 +228,99 @@ class ReinforcementLearning:
         anim = animation.ArtistAnimation(plt.figure(0), images, interval=1000, repeat=False, blit=True)
         plt.show()
 
+    def create_model(self):
+        model = Sequential()
+        model.add(InputLayer(batch_input_shape=(1, self.maze.size[0] * self.maze.size[1] * 3)))
+        model.add(Dense(4, activation='sigmoid'))
+        model.add(Dense(len(self.map2str), activation='linear'))
+        model.compile(loss='mse', optimizer='adam', metrics=['mae'])
+        model.summary()
+        return model
+
+    def flatten_image(self, img):
+        return np.ndarray.flatten(img)[np.newaxis, :]
+
+    def deep_reinforcement_learning(self):
+        model = self.create_model()
+        action_size = len(self.map2str)
+
+        y = 0.95
+        eps = 0.5
+        decay_factor = 0.999
+        rewards_list = []
+
+        self.max_episodes = 500
+        self.max_steps = 50
+
+        for i in range(self.max_episodes):
+            print("Episode {} of {}".format(i + 1, self.max_episodes))
+
+            self.maze.reset()
+
+            eps *= decay_factor
+            done = False
+            reward_sum = 0
+
+            for step in range(self.max_steps):
+                if np.random.random() < eps:    # exploration (random choice)
+                    action = random.randint(0, action_size - 1)
+                else:   # exploitation (biggest value of current state)
+                    img = self.flatten_image(self.maze.make_image(self.maze.size))
+                    action = np.argmax(model.predict(img))
+
+                self.maze.make_move(self.map2str[action])
+                reward, done = self.check_position()
+
+                img = self.flatten_image(self.maze.make_image(self.maze.size))
+                target = reward + y * np.max(model.predict(img))
+                target_vec = model.predict(img)[0]
+                target_vec[action] = target
+                model.fit(img, target_vec.reshape(-1, len(self.map2str)), epochs=1, verbose=0)
+
+                reward_sum += reward
+
+                if done:
+                    break
+
+            # print('Reward sum: ', reward_sum, '\n')
+            rewards_list.append(reward_sum)
+
+        s = self.maze.name + '_dense4_ep' + str(self.max_episodes) + '_st' + str(self.max_steps) + '.h5'
+        model.save(s)
+        return model
+
+    def play_deep(self, model):
+        images = []
+        self.maze = Maze(self.name)
+        images.append([plt.imshow(self.maze.make_image(self.maze.size), animated=True)])
+
+        for step in range(self.max_steps):
+            img = self.flatten_image(self.maze.make_image(self.maze.size))
+            action = np.argmax(model.predict(img))
+
+            print(self.map2str[action])
+            self.maze.make_move(self.map2str[action])
+            images.append([plt.imshow(self.maze.make_image(self.maze.size), animated=True)])
+
+            _, done = self.check_position()
+            if done:
+                break
+
+        anim = animation.ArtistAnimation(plt.figure(0), images, interval=1000, repeat=False, blit=True)
+        plt.show()
+
+
+def rgb2gray(rgb):
+    return np.dot(rgb[...,:3], [0.299, 0.587, 0.114])
+
 
 if __name__ == '__main__':
     np.set_printoptions(precision=2, suppress=True)
 
-    name = '10x10'
+    name = '5x5-v0'
     rl = ReinforcementLearning(name, verbose=False)
-    rl.reinforcement_learning()
-    rl.play()
+    # model = rl.deep_reinforcement_learning()
+
+    model = load_model('5x5-v0_dense4_ep500_st50.h5')
+    rl.play_deep(model)
+
