@@ -145,11 +145,13 @@ class ReinforcementLearning:
         :return: reward, done
         """
         if self.maze.check_end():
+            print('EEEEENNNNNNNNNNNNNNNDDDDDD \n\n\n')
             return 1000, True
         elif self.maze.check_holes():
+            print('HHHHHOOOOOOLLLLLLLEEEEEEEE \n\n\n')
             return -100, True
         elif self.maze.check_path() or self.maze.check_start():
-            return 1, False
+            return -1, False
 
     def reinforcement_learning(self):
         action_size = len(self.map2str)
@@ -230,15 +232,20 @@ class ReinforcementLearning:
 
     def create_model(self):
         model = Sequential()
-        model.add(InputLayer(batch_input_shape=(1, self.maze.size[0] * self.maze.size[1] * 3)))
+        model.add(InputLayer(batch_input_shape=(1, self.maze.size[0] * self.maze.size[1])))
         model.add(Dense(4, activation='sigmoid'))
         model.add(Dense(len(self.map2str), activation='linear'))
         model.compile(loss='mse', optimizer='adam', metrics=['mae'])
         model.summary()
         return model
 
-    def flatten_image(self, img):
+    @staticmethod
+    def flatten_image(img):
         return np.ndarray.flatten(img)[np.newaxis, :]
+
+    @staticmethod
+    def rgb2gray(rgb):
+        return np.dot(rgb[..., :3], [0.299, 0.587, 0.114])
 
     def deep_reinforcement_learning(self):
         model = self.create_model()
@@ -265,13 +272,13 @@ class ReinforcementLearning:
                 if np.random.random() < eps:    # exploration (random choice)
                     action = random.randint(0, action_size - 1)
                 else:   # exploitation (biggest value of current state)
-                    img = self.flatten_image(self.maze.make_image(self.maze.size))
+                    img = self.flatten_image(self.rgb2gray(self.maze.make_image(self.maze.size)))
                     action = np.argmax(model.predict(img))
 
                 self.maze.make_move(self.map2str[action])
                 reward, done = self.check_position()
 
-                img = self.flatten_image(self.maze.make_image(self.maze.size))
+                img = self.flatten_image(self.rgb2gray(self.maze.make_image(self.maze.size)))
                 target = reward + y * np.max(model.predict(img))
                 target_vec = model.predict(img)[0]
                 target_vec[action] = target
@@ -292,26 +299,24 @@ class ReinforcementLearning:
     def play_deep(self, model):
         images = []
         self.maze = Maze(self.name)
-        images.append([plt.imshow(self.maze.make_image(self.maze.size), animated=True)])
+        images.append([plt.imshow(self.rgb2gray(self.maze.make_image(self.maze.size)), animated=True, cmap='gray')])
 
         for step in range(self.max_steps):
-            img = self.flatten_image(self.maze.make_image(self.maze.size))
+            img = self.flatten_image(self.rgb2gray(self.maze.make_image(self.maze.size)))
             action = np.argmax(model.predict(img))
 
             print(self.map2str[action])
             self.maze.make_move(self.map2str[action])
-            images.append([plt.imshow(self.maze.make_image(self.maze.size), animated=True)])
+            images.append([plt.imshow(self.rgb2gray(self.maze.make_image(self.maze.size)), animated=True, cmap='gray')])
 
             _, done = self.check_position()
             if done:
                 break
 
-        anim = animation.ArtistAnimation(plt.figure(0), images, interval=1000, repeat=False, blit=True)
-        plt.show()
+        # anim = animation.ArtistAnimation(plt.figure(0), images, interval=1000, repeat=False, blit=True)
+        # plt.show()
 
 
-def rgb2gray(rgb):
-    return np.dot(rgb[...,:3], [0.299, 0.587, 0.114])
 
 
 if __name__ == '__main__':
@@ -320,7 +325,7 @@ if __name__ == '__main__':
     name = '5x5-v0'
     rl = ReinforcementLearning(name, verbose=False)
     # model = rl.deep_reinforcement_learning()
-
+    #
     model = load_model('5x5-v0_dense4_ep500_st50.h5')
     rl.play_deep(model)
 

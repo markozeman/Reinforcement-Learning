@@ -1,2 +1,2 @@
 # Reinforcement-Learning
-Implementation of reinforcement learning in Python.
+Implementation of (deep) reinforcement learning in Python.
